@@ -1,5 +1,5 @@
+use ev::PointerEvent;
 use leptos::*;
-use leptos_dom::logging::console_log;
 
 fn main() {
     _ = console_log::init_with_level(log::Level::Debug);
@@ -11,36 +11,71 @@ fn main() {
 
 #[component]
 fn App() -> impl IntoView {
-    let (touches, set_touches) = create_signal(Vec::<TouchPoint>::new());
+    let (touches, set_touches) =
+        create_signal(Vec::<(ReadSignal<TouchPoint>, WriteSignal<TouchPoint>)>::new());
+    let handle_pointer_down = move |event: PointerEvent| {
+        let signal = create_signal(TouchPoint {
+            id: event.pointer_id(),
+            x: event.x(),
+            y: event.y(),
+            initial_time: chrono::Utc::now(),
+        });
+        set_touches.update(|touches| {
+            touches.push(signal);
+        });
+    };
+
+    let handle_pointer_move = move |event: PointerEvent| {
+        log::debug!("moving {}", event.pointer_id());
+        if let Some(pos) = touches()
+            .iter()
+            .position(|(touch, _)| touch().id == event.pointer_id())
+        {
+            let (touch, set_touch) = touches()[pos];
+            set_touch.set(TouchPoint {
+                id: event.pointer_id(),
+                x: event.x(),
+                y: event.y(),
+                initial_time: touch().initial_time,
+            })
+        };
+    };
+
+    let handle_pointer_up = move |event: PointerEvent| {
+        set_touches.update(|touches| {
+            if let Some(pos) = touches
+                .iter()
+                .position(|(touch, _)| touch().id == event.pointer_id())
+            {
+                touches.remove(pos);
+            };
+        });
+    };
 
     view! {
-        <div class="h-screen flex items-center justify-center" on:click= move |event| {
-        console_log("help");
-        set_touches.update(|touches| {
-            touches.push(TouchPoint {
-                x: 0,
-                y: 0,
-                initial_time: chrono::Utc::now(),
-            });
-        });
-    }>
-            <For each=touches key=|touch| touch.initial_time children=move |touch|{
-                view!{<div class="flex-1"><Touch/></div>}
+        <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move >
+            <For each=touches key=|(touch,_)| touch().id children=move |(touch,_)|{
+                view!{<Touch touch_point={touch}/>}
             }/>
-        </div>
+        </svg>
     }
 }
 #[component]
-fn Touch() -> impl IntoView {
+fn Touch(touch_point: ReadSignal<TouchPoint>) -> impl IntoView {
+    let size = 50;
+    let radius = size / 2;
+    log::debug!("touching");
+
     view! {
-         <svg height="100" width="100">
-          <circle r="45" cx="50" cy="50" fill="red" />
+        <svg x={touch_point().x-radius} y={touch_point().y-radius} height={size} width={size}>
+          <circle r={size/2} cx={size/2} cy={size/2} fill="red" />
         </svg>
     }
 }
 #[derive(Clone)]
 struct TouchPoint {
-    x: isize,
-    y: isize,
+    id: i32,
+    x: i32,
+    y: i32,
     initial_time: chrono::DateTime<chrono::Utc>,
 }
