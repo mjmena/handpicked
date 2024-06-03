@@ -67,7 +67,7 @@ fn Touch(touch_point: ReadSignal<TouchPoint>) -> impl IntoView {
     log::debug!("touching");
 
     view! {
-        <svg x={touch_point().x-radius} y={touch_point().y-radius} height={size} width={size}>
+        <svg x={move || touch_point().x-radius} y={move || touch_point().y-radius} height={size} width={size}>
           <circle r={size/2} cx={size/2} cy={size/2} fill="red" />
         </svg>
     }
