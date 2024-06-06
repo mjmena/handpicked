@@ -44,7 +44,6 @@ impl fmt::Display for State {
 
 #[component]
 fn App() -> impl IntoView {
-    let default_radius = 100.0;
     let (state, set_state) = create_signal(State::Preparing);
     let (touches, set_touches) =
         create_signal(Vec::<(ReadSignal<TouchPoint>, WriteSignal<TouchPoint>)>::new());
@@ -91,21 +90,9 @@ fn App() -> impl IntoView {
         }
     });
 
-    let (radius, set_radius) = create_signal(default_radius);
-    let (growth_value, set_growth_value) = create_signal(1.0);
-
-    set_interval(
-        move || {
-            if radius() > default_radius {
-                set_growth_value(-1.0)
-            };
-            if radius() < default_radius / 2.0 {
-                set_growth_value(1.0)
-            };
-            set_radius.update(|radius| *radius += growth_value())
-        },
-        core::time::Duration::new(0, 20000000),
-    );
+    let width = window().inner_width().unwrap().as_f64().unwrap();
+    let height = window().inner_height().unwrap().as_f64().unwrap();
+    let radius = f64::min(width, height) * 0.1;
 
     let handle_pointer_down = move |event: PointerEvent| {
         if state() == State::Revealing {
@@ -165,8 +152,9 @@ fn App() -> impl IntoView {
         </svg>
     }
 }
+
 #[component]
-fn Touch(touch_point: ReadSignal<TouchPoint>, radius: ReadSignal<f64>) -> impl IntoView {
+fn Touch(touch_point: ReadSignal<TouchPoint>, radius: f64) -> impl IntoView {
     let (position, set_position) = create_signal((touch_point().x as f64, touch_point().y as f64));
     let (_, set_velocity) = create_signal((0.0, 0.0));
 
@@ -191,11 +179,11 @@ fn Touch(touch_point: ReadSignal<TouchPoint>, radius: ReadSignal<f64>) -> impl I
         interval.unwrap().clear();
     });
 
-    let size = move || radius() * 2.0;
+    let size = move || radius * 2.0;
 
     view! {
-        <svg x={move || position().0-radius()} y={move || position().1-radius()} height={size()} width={size()}>
-          <circle r=radius() cx=radius() cy=radius() fill=move || touch_point().color
+        <svg x={move || position().0-radius} y={move || position().1-radius} height={size()} width={size()}>
+          <circle r=radius cx=radius cy=radius fill=move || touch_point().color
           />
         </svg>
     }
