@@ -22,6 +22,16 @@ enum State {
     Revealing,
 }
 
+impl State {
+    pub fn get_color(&self) -> &str {
+        match self {
+            State::Preparing => "white",
+            State::Selecting => "red",
+            State::Revealing => "black",
+        }
+    }
+}
+
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -147,8 +157,8 @@ fn App() -> impl IntoView {
     };
 
     view! {
-        <div>{move || state().to_string() }</div>
-        <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move >
+        <div style="position:absolute">{move || state().to_string() }</div>
+        <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style=move || format!("background-color:{}", state().get_color()) >
             <For each=touches key=|(touch,_)| touch().id children=move |(touch,_)|{
                 view!{<Touch touch_point={touch} radius={radius}/>}
             }/>
