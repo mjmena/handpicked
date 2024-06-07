@@ -79,6 +79,22 @@ fn App() -> impl IntoView {
         });
     };
 
+    let handle_pointer_move = move |event: PointerEvent| {
+        if let Some(pos) = touches()
+            .iter()
+            .position(|touch| touch().id == event.pointer_id())
+        {
+            let touch = touches()[pos];
+            touch.update(|touch| {
+                *touch = TouchPoint {
+                    x: event.x(),
+                    y: event.y(),
+                    ..touch.clone()
+                }
+            });
+        };
+    };
+
     let handle_pointer_up = move |event: PointerEvent| {
         if state() == State::Revealing {
             return;
@@ -96,7 +112,7 @@ fn App() -> impl IntoView {
 
     view! {
         <div style="position:absolute">{move || state().to_string() }</div>
-        <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up style=move || format!("background-color:{}", state().get_color()) >
+        <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style=move || format!("background-color:{}", state().get_color()) >
             <For each=touches key=|touch| touch().id children=move |touch|{
                 view!{<Touch touch_point={touch} radius={radius}/>}
             }/>
@@ -106,22 +122,10 @@ fn App() -> impl IntoView {
 
 #[component]
 fn Touch(touch_point: RwSignal<TouchPoint>, radius: i32) -> impl IntoView {
-    let handle_pointer_move = move |event: PointerEvent| {
-        if touch_point().id != event.pointer_id() {
-            return;
-        }
-
-        touch_point.set(TouchPoint {
-            x: event.x(),
-            y: event.y(),
-            ..touch_point()
-        });
-    };
-
     let size = move || radius * 2;
 
     view! {
-        <svg x={move || touch_point().x-radius} y={move || touch_point().y-radius} height={size()} width={size()} on:pointermove=handle_pointer_move>
+        <svg x={move || touch_point().x-radius} y={move || touch_point().y-radius} height={size()} width={size()} >
             <circle r=radius cx=radius cy=radius fill=move || touch_point().color />
         </svg>
     }
