@@ -21,7 +21,24 @@ fn App() -> impl IntoView {
     let (countdown, set_countdown) = create_signal(3);
     let (clock, set_clock) = create_signal::<Option<IntervalHandle>>(None);
 
-    let height = window().inner_height().unwrap().as_f64().unwrap() * 0.5;
+    let height = window().inner_height().unwrap().as_f64().unwrap();
+
+    let notice_style = format!(
+        "
+            position:absolute; 
+            font-size:{}pt; 
+            pointer-events:none; 
+            height:100%; 
+            width:100%; 
+            opacity:30%; 
+            display: flex;
+            align-items: center;    
+            justify-content: center;
+            color: white;
+            text-align:center;    
+        ",
+        height * 0.1
+    );
 
     let countdown_style = format!(
         "
@@ -35,8 +52,9 @@ fn App() -> impl IntoView {
             align-items: center;    
             justify-content: center;
             color: white;    
+            text-align:center;
         ",
-        height
+        height * 0.5
     );
 
     create_effect(move |_| {
@@ -60,6 +78,9 @@ fn App() -> impl IntoView {
     });
 
     view! {
+        <Show when=move || state() == State::Preparing>
+            <div style=&notice_style>Place fingers on screen to begin</div>
+        </Show>
         <div style=countdown_style>{move || (state() == State::Selecting).then(countdown)}</div>
         <TouchZone state/>
     }
