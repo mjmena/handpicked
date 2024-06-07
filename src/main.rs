@@ -19,7 +19,6 @@ fn main() {
 fn App() -> impl IntoView {
     let state = create_rw_signal(State::Preparing);
     let (countdown, set_countdown) = create_signal(3);
-    let (clock, set_clock) = create_signal::<Option<IntervalHandle>>(None);
 
     let height = window().inner_height().unwrap().as_f64().unwrap();
 
@@ -57,11 +56,10 @@ fn App() -> impl IntoView {
         height * 0.5
     );
 
-    create_effect(move |_| {
-        if let Some(clock) = clock() {
-            clock.clear();
+    create_effect(move |interval_handle: Option<Option<IntervalHandle>>| {
+        if let Some(Some(interval_handle)) = interval_handle {
+            interval_handle.clear();
             set_countdown(3);
-            set_clock(None);
         };
 
         if state() == State::Selecting {
@@ -73,7 +71,9 @@ fn App() -> impl IntoView {
                 },
                 Duration::new(1, 0),
             );
-            set_clock(Some(result.unwrap()))
+            Some(result.unwrap())
+        } else {
+            None
         }
     });
 
@@ -90,16 +90,15 @@ fn App() -> impl IntoView {
 fn TouchZone(state: RwSignal<State>) -> impl IntoView {
     let colors = ["#ffbe0b", "#fb5607", "#ff006e", "#8338ec", "#3a86ff"];
     let (touches, set_touches) = create_signal(Vec::<RwSignal<TouchPoint>>::new());
-    let (timer, set_timer) = create_signal::<Option<TimeoutHandle>>(None);
 
-    create_effect(move |_| {
+    create_effect(move |timer_handle: Option<Option<TimeoutHandle>>| {
         //clear timer from previous group of touches
-        if let Some(timer) = timer() {
+        if let Some(Some(timer)) = timer_handle {
             timer.clear();
         };
 
         if state() == State::Revealing {
-            return;
+            return None;
         }
 
         if touches().len() > 0 {
@@ -126,9 +125,10 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
                 },
                 core::time::Duration::new(3, 0),
             );
-            set_timer(Some(result.unwrap()));
+            Some(result.unwrap())
         } else {
             state.set(State::Preparing);
+            None
         }
     });
 
