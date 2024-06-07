@@ -22,9 +22,9 @@ pub enum State {
 impl State {
     pub fn get_color(&self) -> &str {
         match self {
-            State::Preparing => "white",
-            State::Selecting => "red",
-            State::Revealing => "black",
+            State::Preparing => "#b38b6d",
+            State::Selecting => "#b38b6d",
+            State::Revealing => "#b38b6d",
         }
     }
 }

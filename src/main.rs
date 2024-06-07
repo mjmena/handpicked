@@ -33,7 +33,8 @@ fn App() -> impl IntoView {
             opacity:30%; 
             display: flex;
             align-items: center;    
-            justify-content: center;    
+            justify-content: center;
+            color: white;    
         ",
         height
     );
@@ -66,6 +67,7 @@ fn App() -> impl IntoView {
 
 #[component]
 fn TouchZone(state: RwSignal<State>) -> impl IntoView {
+    let colors = ["#ffbe0b", "#fb5607", "#ff006e", "#8338ec", "#3a86ff"];
     let (touches, set_touches) = create_signal(Vec::<RwSignal<TouchPoint>>::new());
     let (timer, set_timer) = create_signal::<Option<TimeoutHandle>>(None);
 
@@ -87,7 +89,6 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
 
             let result = set_timeout_with_handle(
                 move || {
-                    info!("revealing");
                     state.set(State::Revealing);
                     set_touches.update(|touches| {
                         let selected_touch = touches[random as usize];
@@ -122,7 +123,7 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
             id: event.pointer_id(),
             x: event.x(),
             y: event.y(),
-            color: "#ffbe0b".to_string(),
+            color: colors[touches().len()].to_string(),
         });
         set_touches.update(|touches| {
             touches.push(signal);
