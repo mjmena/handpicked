@@ -1,7 +1,9 @@
 use crate::leptos_dom::helpers::TimeoutHandle;
+use core::time::Duration;
 use ev::PointerEvent;
 use handpicked::*;
 use leptos::*;
+use leptos_dom::helpers::IntervalHandle;
 use log::info;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
@@ -15,7 +17,55 @@ fn main() {
 
 #[component]
 fn App() -> impl IntoView {
-    let (state, set_state) = create_signal(State::Preparing);
+    let state = create_rw_signal(State::Preparing);
+    let (countdown, set_countdown) = create_signal(3);
+    let (clock, set_clock) = create_signal::<Option<IntervalHandle>>(None);
+
+    let height = window().inner_height().unwrap().as_f64().unwrap() * 0.5;
+
+    let countdown_style = format!(
+        "
+            position:absolute; 
+            font-size:{}pt; 
+            pointer-events:none; 
+            height:100%; 
+            width:100%; 
+            opacity:30%; 
+            display: flex;
+            align-items: center;    
+            justify-content: center;    
+        ",
+        height
+    );
+
+    create_effect(move |_| {
+        if let Some(clock) = clock() {
+            clock.clear();
+            set_countdown(3);
+            set_clock(None);
+        };
+
+        if state() == State::Selecting {
+            let result = set_interval_with_handle(
+                move || {
+                    set_countdown.update(|countdown| {
+                        *countdown -= 1;
+                    })
+                },
+                Duration::new(1, 0),
+            );
+            set_clock(Some(result.unwrap()))
+        }
+    });
+
+    view! {
+        <div style=countdown_style>{move || (state() == State::Selecting).then(countdown)}</div>
+        <TouchZone state/>
+    }
+}
+
+#[component]
+fn TouchZone(state: RwSignal<State>) -> impl IntoView {
     let (touches, set_touches) = create_signal(Vec::<RwSignal<TouchPoint>>::new());
     let (timer, set_timer) = create_signal::<Option<TimeoutHandle>>(None);
 
@@ -29,8 +79,8 @@ fn App() -> impl IntoView {
             return;
         }
 
-        if touches().len() > 1 {
-            set_state(State::Selecting);
+        if touches().len() > 0 {
+            state.set(State::Selecting);
             let mut hasher = DefaultHasher::new();
             touches().hash(&mut hasher);
             let random = hasher.finish() % touches().len() as u64;
@@ -38,7 +88,7 @@ fn App() -> impl IntoView {
             let result = set_timeout_with_handle(
                 move || {
                     info!("revealing");
-                    set_state(State::Revealing);
+                    state.set(State::Revealing);
                     set_touches.update(|touches| {
                         let selected_touch = touches[random as usize];
                         info!("Selected: {}", selected_touch());
@@ -46,7 +96,7 @@ fn App() -> impl IntoView {
                     });
                     set_timeout(
                         move || {
-                            set_state(State::Preparing);
+                            state.set(State::Preparing);
                             set_touches(vec![]);
                         },
                         core::time::Duration::new(5, 0),
@@ -56,7 +106,7 @@ fn App() -> impl IntoView {
             );
             set_timer(Some(result.unwrap()));
         } else {
-            set_state(State::Preparing);
+            state.set(State::Preparing);
         }
     });
 
@@ -111,7 +161,6 @@ fn App() -> impl IntoView {
     };
 
     view! {
-        <div style="position:absolute">{move || state().to_string() }</div>
         <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style=move || format!("background-color:{}", state().get_color()) >
             <For each=touches key=|touch| touch().id children=move |touch|{
                 view!{<Touch touch_point={touch} radius={radius}/>}
