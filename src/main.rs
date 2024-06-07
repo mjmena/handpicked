@@ -1,11 +1,9 @@
 use crate::leptos_dom::helpers::TimeoutHandle;
-use core::fmt;
 use ev::PointerEvent;
+use handpicked::*;
 use leptos::*;
 use log::info;
-use std::hash::DefaultHasher;
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 fn main() {
     _ = console_log::init_with_level(log::Level::Debug);
@@ -15,38 +13,10 @@ fn main() {
     })
 }
 
-#[derive(Clone, PartialEq)]
-enum State {
-    Preparing,
-    Selecting,
-    Revealing,
-}
-
-impl State {
-    pub fn get_color(&self) -> &str {
-        match self {
-            State::Preparing => "white",
-            State::Selecting => "red",
-            State::Revealing => "black",
-        }
-    }
-}
-
-impl fmt::Display for State {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            State::Preparing => write!(f, "Preparing"),
-            State::Selecting => write!(f, "Selecting"),
-            State::Revealing => write!(f, "Revealing"),
-        }
-    }
-}
-
 #[component]
 fn App() -> impl IntoView {
     let (state, set_state) = create_signal(State::Preparing);
-    let (touches, set_touches) =
-        create_signal(Vec::<(ReadSignal<TouchPoint>, WriteSignal<TouchPoint>)>::new());
+    let (touches, set_touches) = create_signal(Vec::<RwSignal<TouchPoint>>::new());
     let (timer, set_timer) = create_signal::<Option<TimeoutHandle>>(None);
 
     create_effect(move |_| {
@@ -59,7 +29,7 @@ fn App() -> impl IntoView {
             return;
         }
 
-        if touches().len() > 0 {
+        if touches().len() > 1 {
             set_state(State::Selecting);
             let mut hasher = DefaultHasher::new();
             touches().hash(&mut hasher);
@@ -71,7 +41,7 @@ fn App() -> impl IntoView {
                     set_state(State::Revealing);
                     set_touches.update(|touches| {
                         let selected_touch = touches[random as usize];
-                        info!("Selected: {}", selected_touch.0());
+                        info!("Selected: {}", selected_touch());
                         *touches = vec![touches[random as usize]];
                     });
                     set_timeout(
@@ -92,13 +62,13 @@ fn App() -> impl IntoView {
 
     let width = window().inner_width().unwrap().as_f64().unwrap();
     let height = window().inner_height().unwrap().as_f64().unwrap();
-    let radius = f64::min(width, height) * 0.1;
+    let radius = (f64::min(width, height) * 0.1) as i32;
 
     let handle_pointer_down = move |event: PointerEvent| {
         if state() == State::Revealing {
             return;
         }
-        let signal = create_signal(TouchPoint {
+        let signal = create_rw_signal(TouchPoint {
             id: event.pointer_id(),
             x: event.x(),
             y: event.y(),
@@ -109,24 +79,6 @@ fn App() -> impl IntoView {
         });
     };
 
-    let handle_pointer_move = move |event: PointerEvent| {
-        if state() == State::Revealing {
-            return;
-        }
-        if let Some(pos) = touches()
-            .iter()
-            .position(|(touch, _)| touch().id == event.pointer_id())
-        {
-            let (_, set_touch) = touches()[pos];
-            set_touch.set(TouchPoint {
-                id: event.pointer_id(),
-                x: event.x(),
-                y: event.y(),
-                color: "#ffbe0b".to_string(),
-            })
-        };
-    };
-
     let handle_pointer_up = move |event: PointerEvent| {
         if state() == State::Revealing {
             return;
@@ -134,19 +86,18 @@ fn App() -> impl IntoView {
         set_touches.update(|touches| {
             if let Some(pos) = touches
                 .iter()
-                .position(|(touch, _)| touch().id == event.pointer_id())
+                .position(|touch| touch().id == event.pointer_id())
             {
-                let (touch, set_touch) = touches.remove(pos);
+                let touch = touches.remove(pos);
                 touch.dispose();
-                set_touch.dispose();
             };
         });
     };
 
     view! {
         <div style="position:absolute">{move || state().to_string() }</div>
-        <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style=move || format!("background-color:{}", state().get_color()) >
-            <For each=touches key=|(touch,_)| touch().id children=move |(touch,_)|{
+        <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up style=move || format!("background-color:{}", state().get_color()) >
+            <For each=touches key=|touch| touch().id children=move |touch|{
                 view!{<Touch touch_point={touch} radius={radius}/>}
             }/>
         </svg>
@@ -154,50 +105,24 @@ fn App() -> impl IntoView {
 }
 
 #[component]
-fn Touch(touch_point: ReadSignal<TouchPoint>, radius: f64) -> impl IntoView {
-    let (position, set_position) = create_signal((touch_point().x as f64, touch_point().y as f64));
-    let (_, set_velocity) = create_signal((0.0, 0.0));
+fn Touch(touch_point: RwSignal<TouchPoint>, radius: i32) -> impl IntoView {
+    let handle_pointer_move = move |event: PointerEvent| {
+        if touch_point().id != event.pointer_id() {
+            return;
+        }
 
-    let interval = set_interval_with_handle(
-        move || {
-            set_velocity.update(|(velocity_x, velocity_y)| {
-                *velocity_x += (touch_point().x as f64 - position().0) * 0.01;
-                *velocity_x *= 0.95;
-                *velocity_y += (touch_point().y as f64 - position().1) * 0.01;
-                *velocity_y *= 0.95;
+        touch_point.set(TouchPoint {
+            x: event.x(),
+            y: event.y(),
+            ..touch_point()
+        });
+    };
 
-                set_position.update(|(x, y)| {
-                    *x += *velocity_x;
-                    *y += *velocity_y;
-                })
-            });
-        },
-        core::time::Duration::new(0, 10000000),
-    );
-
-    on_cleanup(|| {
-        interval.unwrap().clear();
-    });
-
-    let size = move || radius * 2.0;
+    let size = move || radius * 2;
 
     view! {
-        <svg x={move || position().0-radius} y={move || position().1-radius} height={size()} width={size()}>
-          <circle r=radius cx=radius cy=radius fill=move || touch_point().color
-          />
+        <svg x={move || touch_point().x-radius} y={move || touch_point().y-radius} height={size()} width={size()} on:pointermove=handle_pointer_move>
+            <circle r=radius cx=radius cy=radius fill=move || touch_point().color />
         </svg>
-    }
-}
-#[derive(Clone, Debug)]
-struct TouchPoint {
-    id: i32,
-    x: i32,
-    y: i32,
-    color: String,
-}
-
-impl fmt::Display for TouchPoint {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} ({},{})", self.id, self.x, self.y)
     }
 }
