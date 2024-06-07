@@ -183,7 +183,7 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
     };
 
     view! {
-        <svg class="h-screen w-screen" on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style=move || format!("background-color:{}", state().get_color()) >
+        <svg on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style="background-color:#b38b6d">
             <For each=touches key=|touch| touch().id children=move |touch|{
                 view!{<Touch touch_point={touch} radius={radius}/>}
             }/>
