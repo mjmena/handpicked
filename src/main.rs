@@ -113,7 +113,7 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
 
     let width = window().inner_width().unwrap().as_f64().unwrap();
     let height = window().inner_height().unwrap().as_f64().unwrap();
-    let radius = (f64::min(width, height) * 0.1) as i32;
+    let radius = (f64::min(width, height) * 0.25) as i32;
 
     let handle_pointer_down = move |event: PointerEvent| {
         if state() == State::Revealing {
