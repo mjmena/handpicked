@@ -1,10 +1,8 @@
-use crate::leptos_dom::helpers::TimeoutHandle;
 use core::time::Duration;
 use ev::PointerEvent;
 use handpicked::*;
 use leptos::*;
-use leptos_dom::helpers::IntervalHandle;
-use log::info;
+use leptos_dom::helpers::{IntervalHandle, TimeoutHandle};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 fn main() {
@@ -17,7 +15,7 @@ fn main() {
 
 #[component]
 fn App() -> impl IntoView {
-    let state = create_rw_signal(State::Preparing);
+    let state = create_rw_signal(State::Starting);
     let (countdown, set_countdown) = create_signal(3);
 
     let height = window().inner_height().unwrap().as_f64().unwrap();
@@ -78,7 +76,7 @@ fn App() -> impl IntoView {
     });
 
     view! {
-        <Show when=move || state() == State::Preparing>
+        <Show when=move || state() == State::Starting>
             <div style=&notice_style>Place fingers on screen to begin</div>
         </Show>
         <div style=countdown_style>{move || (state() == State::Selecting).then(countdown)}</div>
@@ -101,8 +99,7 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
             return None;
         }
 
-        if touches().len() > 0 {
-            state.set(State::Selecting);
+        if touches().len() > 1 && state() == State::Selecting {
             let mut hasher = DefaultHasher::new();
             touches().hash(&mut hasher);
             let random = hasher.finish() % touches().len() as u64;
@@ -111,24 +108,54 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
                 move || {
                     state.set(State::Revealing);
                     set_touches.update(|touches| {
-                        let selected_touch = touches[random as usize];
-                        info!("Selected: {}", selected_touch());
                         *touches = vec![touches[random as usize]];
                     });
-                    set_timeout(
-                        move || {
-                            state.set(State::Preparing);
-                            set_touches(vec![]);
-                        },
-                        core::time::Duration::new(5, 0),
-                    );
                 },
                 core::time::Duration::new(3, 0),
             );
             Some(result.unwrap())
         } else {
-            state.set(State::Preparing);
             None
+        }
+    });
+
+    //timer to create a 1 second buffer when a finger is placed to when countdown starts
+    create_effect(move |preparing_timer: Option<Option<TimeoutHandle>>| {
+        if let Some(Some(handle)) = preparing_timer {
+            handle.clear();
+        }
+
+        if !touches().is_empty() {
+            state.update(|state| {
+                if *state != State::Revealing {
+                    *state = State::Preparing
+                }
+            });
+            if touches().len() > 1 {
+                let result = set_timeout_with_handle(
+                    move || {
+                        state.set(State::Selecting);
+                    },
+                    core::time::Duration::new(1, 0),
+                );
+                Some(result.unwrap())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    });
+
+    create_effect(move |_| {
+        if state() == State::Revealing {
+            set_timeout(
+                move || {
+                    state.set(State::Starting);
+                    set_touches(vec![]);
+                },
+                core::time::Duration::new(5, 0),
+            );
         }
     });
 
