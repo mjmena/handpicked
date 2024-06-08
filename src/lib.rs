@@ -18,6 +18,7 @@ pub enum State {
     Preparing,
     Selecting,
     Revealing,
+    Resetting,
 }
 
 impl std::fmt::Display for State {
@@ -27,6 +28,7 @@ impl std::fmt::Display for State {
             State::Preparing => write!(f, "Preparing"),
             State::Selecting => write!(f, "Selecting"),
             State::Revealing => write!(f, "Revealing"),
+            State::Resetting => write!(f, "Resetting"),
         }
     }
 }

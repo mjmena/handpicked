@@ -147,22 +147,6 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
         }
     });
 
-    create_effect(move |_| {
-        if state() == State::Revealing {
-            set_timeout(
-                move || {
-                    state.set(State::Starting);
-                    set_touches(vec![]);
-                },
-                core::time::Duration::new(5, 0),
-            );
-        }
-    });
-
-    let width = window().inner_width().unwrap().as_f64().unwrap();
-    let height = window().inner_height().unwrap().as_f64().unwrap();
-    let radius = (f64::min(width, height) * 0.25) as i32;
-
     let handle_pointer_down = move |event: PointerEvent| {
         if state() == State::Revealing {
             return;
@@ -209,6 +193,47 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
         });
     };
 
+    let width = window().inner_width().unwrap().as_f64().unwrap();
+    let height = window().inner_height().unwrap().as_f64().unwrap();
+    let initial_radius = (f64::min(width, height) * 0.25) as i32;
+
+    let (radius, set_radius) = create_signal(initial_radius);
+    create_effect(move |_| {
+        if state() == State::Revealing {
+            let interval_handle = set_interval_with_handle(
+                move || {
+                    set_radius(radius() + 10);
+                },
+                Duration::new(0, 20000000),
+            );
+            set_timeout(
+                move || {
+                    interval_handle.unwrap().clear();
+                    state.set(State::Resetting);
+                },
+                Duration::new(2, 0),
+            );
+        }
+
+        if state() == State::Resetting {
+            let interval_handle = set_interval_with_handle(
+                move || {
+                    set_radius(radius() - 10);
+                },
+                Duration::new(0, 16000000),
+            );
+            set_timeout(
+                move || {
+                    interval_handle.unwrap().clear();
+
+                    state.set(State::Starting);
+                    set_radius(initial_radius);
+                    set_touches(vec![]);
+                },
+                Duration::new(2, 0),
+            )
+        }
+    });
     view! {
         <svg on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style="background-color:#b38b6d">
             <For each=touches key=|touch| touch().id children=move |touch|{
@@ -219,12 +244,12 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
 }
 
 #[component]
-fn Touch(touch_point: RwSignal<TouchPoint>, radius: i32) -> impl IntoView {
-    let size = move || radius * 2;
+fn Touch(touch_point: RwSignal<TouchPoint>, radius: ReadSignal<i32>) -> impl IntoView {
+    let size = move || radius() * 2;
 
     view! {
-        <svg x={move || touch_point().x-radius} y={move || touch_point().y-radius} height={size()} width={size()} >
-            <circle r=radius cx=radius cy=radius fill=move || touch_point().color />
+        <svg x={move || touch_point().x-radius()} y={move || touch_point().y-radius()} height=size width=size >
+            <circle style="mix-blend-mode:screen; " r=radius cx=radius cy=radius fill=move || touch_point().color />
         </svg>
     }
 }
