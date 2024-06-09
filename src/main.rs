@@ -17,7 +17,7 @@ fn main() {
 
 #[component]
 fn App() -> impl IntoView {
-    let state = create_rw_signal(State::Starting);
+    let state = create_rw_signal(State::Preparing);
     let touches = create_rw_signal(Vec::<RwSignal<TouchPoint>>::new());
 
     let width = window().inner_width().unwrap().as_f64().unwrap();
@@ -39,7 +39,7 @@ fn App() -> impl IntoView {
     });
 
     let state_view = move || match state() {
-        State::Starting | State::Preparing => view! {
+        State::Preparing => view! {
             <PreparingTouchZone state touches radius/>
         },
         State::Selecting => view! {
@@ -104,7 +104,7 @@ fn App() -> impl IntoView {
         });
     };
     view! {
-        <Show when=move||state()==State::Starting>
+        <Show when=move || touches().is_empty()>
             <InitialNotice />
         </Show>
         <Show when=move||state()==State::Selecting>
@@ -232,7 +232,7 @@ fn ResettingTouches(
         move || {
             interval_handle.unwrap().clear();
 
-            state.set(State::Starting);
+            state.set(State::Preparing);
             radius.set(initial_radius);
             touches.set(vec![]);
         },

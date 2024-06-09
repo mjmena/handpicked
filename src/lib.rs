@@ -14,7 +14,6 @@ impl std::fmt::Display for TouchPoint {
 
 #[derive(Clone, PartialEq)]
 pub enum State {
-    Starting,
     Preparing,
     Selecting,
     Revealing,
@@ -24,7 +23,6 @@ pub enum State {
 impl std::fmt::Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            State::Starting => write!(f, "Starting"),
             State::Preparing => write!(f, "Preparing"),
             State::Selecting => write!(f, "Selecting"),
             State::Revealing => write!(f, "Revealing"),

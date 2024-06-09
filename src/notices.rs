@@ -62,7 +62,7 @@ pub fn InitialNotice() -> impl IntoView {
     );
 
     view! {
-        <div style=&notice_style>
+        <div style=&notice_style div>
             Place fingers on screen to begin
         </div>
     }
