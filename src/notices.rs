@@ -44,7 +44,6 @@ pub fn CountdownNotice() -> impl IntoView {
 #[component]
 pub fn InitialNotice() -> impl IntoView {
     let height = window().inner_height().unwrap().as_f64().unwrap();
-
     let notice_style = format!(
         "
             position:absolute; 
@@ -63,6 +62,8 @@ pub fn InitialNotice() -> impl IntoView {
     );
 
     view! {
-        <div style=&notice_style>Place fingers on screen to begin</div>
+        <div style=&notice_style>
+            Place fingers on screen to begin
+        </div>
     }
 }
