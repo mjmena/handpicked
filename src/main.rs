@@ -54,6 +54,22 @@ fn App() -> impl IntoView {
         height * 0.5
     );
 
+    let width = window().inner_width().unwrap().as_f64().unwrap();
+    let height = window().inner_height().unwrap().as_f64().unwrap();
+    let initial_radius = (f64::min(width, height) * 0.25) as i32;
+    let radius = create_rw_signal(initial_radius);
+    let touches = create_rw_signal(Vec::<RwSignal<TouchPoint>>::new());
+
+    #[cfg(debug_assertions)]
+    touches.update(|touches| {
+        touches.push(create_rw_signal(TouchPoint {
+            id: 199,
+            x: 200,
+            y: 200,
+            color: "#3a86ff".to_string(),
+        }))
+    });
+
     create_effect(move |interval_handle: Option<Option<IntervalHandle>>| {
         if let Some(Some(interval_handle)) = interval_handle {
             interval_handle.clear();
@@ -80,24 +96,28 @@ fn App() -> impl IntoView {
             <div style=&notice_style>Place fingers on screen to begin</div>
         </Show>
         <div style=countdown_style>{move || (state() == State::Selecting).then(countdown)}</div>
-        <TouchZone state/>
+        <Show when=move || state() == State::Revealing || state() == State::Resetting>
+            <EndingTouchZone state touches radius />
+        </Show>
+        <Show when=move || state() != State::Revealing || state() != State::Resetting>
+            <TouchZone state touches radius/>
+        </Show>
     }
 }
 
 #[component]
-fn TouchZone(state: RwSignal<State>) -> impl IntoView {
+fn TouchZone(
+    state: RwSignal<State>,
+    touches: RwSignal<Vec<RwSignal<TouchPoint>>>,
+    radius: RwSignal<i32>,
+) -> impl IntoView {
     let colors = ["#ffbe0b", "#fb5607", "#ff006e", "#8338ec", "#3a86ff"];
-    let (touches, set_touches) = create_signal(Vec::<RwSignal<TouchPoint>>::new());
 
     create_effect(move |timer_handle: Option<Option<TimeoutHandle>>| {
         //clear timer from previous group of touches
         if let Some(Some(timer)) = timer_handle {
             timer.clear();
         };
-
-        if state() == State::Revealing {
-            return None;
-        }
 
         if touches().len() > 1 && state() == State::Selecting {
             let mut hasher = DefaultHasher::new();
@@ -107,7 +127,7 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
             let result = set_timeout_with_handle(
                 move || {
                     state.set(State::Revealing);
-                    set_touches.update(|touches| {
+                    touches.update(|touches| {
                         *touches = vec![touches[random as usize]];
                     });
                 },
@@ -148,16 +168,13 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
     });
 
     let handle_pointer_down = move |event: PointerEvent| {
-        if state() == State::Revealing {
-            return;
-        }
         let signal = create_rw_signal(TouchPoint {
             id: event.pointer_id(),
             x: event.x(),
             y: event.y(),
             color: colors[touches().len()].to_string(),
         });
-        set_touches.update(|touches| {
+        touches.update(|touches| {
             touches.push(signal);
         });
     };
@@ -179,10 +196,7 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
     };
 
     let handle_pointer_up = move |event: PointerEvent| {
-        if state() == State::Revealing {
-            return;
-        }
-        set_touches.update(|touches| {
+        touches.update(|touches| {
             if let Some(pos) = touches
                 .iter()
                 .position(|touch| touch().id == event.pointer_id())
@@ -193,16 +207,31 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
         });
     };
 
-    let width = window().inner_width().unwrap().as_f64().unwrap();
-    let height = window().inner_height().unwrap().as_f64().unwrap();
-    let initial_radius = (f64::min(width, height) * 0.25) as i32;
+    view! {
+        <svg on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style="background-color:#b38b6d">
+            <For each=touches key=|touch| touch().id children=move |touch|{
+                view!{<Touch touch_point=touch.read_only() radius=radius.read_only() />}
+            }/>
+        </svg>
+    }
+}
 
-    let (radius, set_radius) = create_signal(initial_radius);
+#[component]
+fn EndingTouchZone(
+    // signal with the current state of the app
+    state: RwSignal<State>,
+    // read signal that contain the current winning touches
+    touches: RwSignal<Vec<RwSignal<TouchPoint>>>,
+    radius: RwSignal<i32>,
+) -> impl IntoView {
+    let initial_radius = radius();
     create_effect(move |_| {
         if state() == State::Revealing {
             let interval_handle = set_interval_with_handle(
                 move || {
-                    set_radius(radius() + 10);
+                    radius.update(|radius| {
+                        *radius += 10;
+                    });
                 },
                 Duration::new(0, 20000000),
             );
@@ -218,7 +247,9 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
         if state() == State::Resetting {
             let interval_handle = set_interval_with_handle(
                 move || {
-                    set_radius(radius() - 10);
+                    radius.update(|radius| {
+                        *radius -= 10;
+                    });
                 },
                 Duration::new(0, 16000000),
             );
@@ -227,24 +258,41 @@ fn TouchZone(state: RwSignal<State>) -> impl IntoView {
                     interval_handle.unwrap().clear();
 
                     state.set(State::Starting);
-                    set_radius(initial_radius);
-                    set_touches(vec![]);
+                    radius.set(initial_radius);
+                    touches.set(vec![]);
                 },
                 Duration::new(2, 0),
             )
         }
     });
+
+    let handle_pointer_move = move |event: PointerEvent| {
+        if let Some(pos) = touches()
+            .iter()
+            .position(|touch| touch().id == event.pointer_id())
+        {
+            let touch = touches()[pos];
+            touch.update(|touch| {
+                *touch = TouchPoint {
+                    x: event.x(),
+                    y: event.y(),
+                    ..touch.clone()
+                }
+            });
+        };
+    };
+
     view! {
-        <svg on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style="background-color:#b38b6d">
+        <svg on:pointermove=handle_pointer_move style="background-color:#b38b6d">
             <For each=touches key=|touch| touch().id children=move |touch|{
-                view!{<Touch touch_point={touch} radius={radius}/>}
+                view!{<Touch touch_point=touch.read_only() radius=radius.read_only()/>}
             }/>
         </svg>
     }
 }
 
 #[component]
-fn Touch(touch_point: RwSignal<TouchPoint>, radius: ReadSignal<i32>) -> impl IntoView {
+fn Touch(touch_point: ReadSignal<TouchPoint>, radius: ReadSignal<i32>) -> impl IntoView {
     let size = move || radius() * 2;
 
     view! {
