@@ -40,77 +40,61 @@ fn App() -> impl IntoView {
         log::info!("{}", state());
     });
 
-    view! {
-        <Show when=move || state() == State::Starting >
-            <InitialNotice/>
-        </Show>
-        <Show when=move || state() == State::Selecting >
-            <CountdownNotice/>
-        </Show>
-        <Show when=move || state() == State::Revealing || state() ==  State::Resetting fallback=move || view!{ <TouchZone state touches radius/>}>
-            <EndingTouchZone state touches radius />
-        </Show>
+    // view! {
+    //     <Show when=move || state() == State::Starting >
+    //         <InitialNotice/>
+    //     </Show>
+    //     <Show when=move || state() == State::Selecting >
+    //     </Show>
+    //     <Show when=move || state() == State::Revealing || state() ==  State::Resetting fallback=move || view!{
+    //         <Show when= move || state() == State::Selecting fallback=move || view!{<PreparingTouchZone state touches radius />}>
+    //             <SelectingTouchZone state touches radius/>
+    //         </Show>
+    //     }>
+    //     </Show>
+    // }
+    move || match state() {
+        State::Starting => view! {
+        <InitialNotice/>
+        <PreparingTouchZone state touches radius/>
+        }
+        .into_view(),
+        State::Preparing => {
+            view! {
+                <PreparingTouchZone state touches radius/>
+            }
+        }
+        State::Selecting => {
+            view! {
+                <SelectingTouchZone state touches radius/>
+            }
+        }
+        State::Revealing | State::Resetting => {
+            view! {
+                <EndingTouchZone state touches radius />
+            }
+        }
     }
 }
 
 #[component]
-fn TouchZone(
+fn PreparingTouchZone(
     state: RwSignal<State>,
     touches: RwSignal<Vec<RwSignal<TouchPoint>>>,
     radius: RwSignal<i32>,
 ) -> impl IntoView {
     let colors = ["#ffbe0b", "#fb5607", "#ff006e", "#8338ec", "#3a86ff"];
 
-    create_effect(move |timer_handle: Option<Option<TimeoutHandle>>| {
-        //clear timer from previous group of touches
-        if let Some(Some(timer)) = timer_handle {
-            timer.clear();
-        };
-
-        if state() == State::Selecting {
-            let mut hasher = DefaultHasher::new();
-            touches().hash(&mut hasher);
-            let random = hasher.finish() % touches().len() as u64;
-
-            let result = set_timeout_with_handle(
-                move || {
-                    state.set(State::Revealing);
-                    touches.update(|touches| {
-                        *touches = vec![touches[random as usize]];
-                    });
-                },
-                core::time::Duration::new(3, 0),
-            );
-            Some(result.unwrap())
-        } else {
-            None
-        }
-    });
-
     //timer to create a 1 second buffer when a finger is placed to when countdown starts
-    create_effect(move |preparing_timer: Option<Option<TimeoutHandle>>| {
-        if let Some(Some(handle)) = preparing_timer {
-            handle.clear();
-        }
-        if !touches().is_empty() {
-            state.update(|state| {
-                if *state != State::Revealing {
-                    *state = State::Preparing
-                }
-            });
-            if touches().len() > 1 {
-                let result = set_timeout_with_handle(
-                    move || {
-                        state.set(State::Selecting);
-                    },
-                    core::time::Duration::new(1, 0),
-                );
-                Some(result.unwrap())
-            } else {
-                None
-            }
-        } else {
-            None
+    create_effect(move |_| {
+        let result = set_timeout_with_handle(
+            move || {
+                state.set(State::Selecting);
+            },
+            core::time::Duration::new(1, 0),
+        );
+        if touches().len() < 2 {
+            result.unwrap().clear();
         }
     });
 
@@ -156,6 +140,101 @@ fn TouchZone(
     };
 
     view! {
+        <svg on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style="background-color:#b38b6d">
+            <For each=touches key=|touch| touch().id children=move |touch|{
+                view!{<Touch touch_point=touch.read_only() radius=radius.read_only() />}
+            }/>
+        </svg>
+    }
+}
+
+#[component]
+fn SelectingTouchZone(
+    state: RwSignal<State>,
+    touches: RwSignal<Vec<RwSignal<TouchPoint>>>,
+    radius: RwSignal<i32>,
+) -> impl IntoView {
+    let colors = ["#ffbe0b", "#fb5607", "#ff006e", "#8338ec", "#3a86ff"];
+
+    create_effect(move |previous_touches: Option<Vec<RwSignal<TouchPoint>>>| {
+        if let Some(previous_touches) = previous_touches {
+            if previous_touches != touches() {
+                state.set(State::Preparing)
+            }
+        }
+        touches()
+    });
+
+    create_effect(move |timer_handle: Option<Option<TimeoutHandle>>| {
+        //clear timer from previous group of touches
+        if let Some(Some(timer)) = timer_handle {
+            timer.clear();
+        };
+
+        if state() == State::Selecting {
+            let mut hasher = DefaultHasher::new();
+            touches().hash(&mut hasher);
+            let random = hasher.finish() % touches().len() as u64;
+
+            let result = set_timeout_with_handle(
+                move || {
+                    state.set(State::Revealing);
+                    touches.update(|touches| {
+                        *touches = vec![touches[random as usize]];
+                    });
+                },
+                core::time::Duration::new(3, 0),
+            );
+            Some(result.unwrap())
+        } else {
+            None
+        }
+    });
+
+    //timer to create a 1 second buffer when a finger is placed to when countdown starts
+    let handle_pointer_down = move |event: PointerEvent| {
+        log::info!("Pointer down");
+        let signal = create_rw_signal(TouchPoint {
+            id: event.pointer_id(),
+            x: event.x(),
+            y: event.y(),
+            color: colors[touches().len()].to_string(),
+        });
+        touches.update(|touches| {
+            touches.push(signal);
+        });
+    };
+
+    let handle_pointer_move = move |event: PointerEvent| {
+        if let Some(pos) = touches()
+            .iter()
+            .position(|touch| touch().id == event.pointer_id())
+        {
+            let touch = touches()[pos];
+            touch.update(|touch| {
+                *touch = TouchPoint {
+                    x: event.x(),
+                    y: event.y(),
+                    ..touch.clone()
+                }
+            });
+        };
+    };
+
+    let handle_pointer_up = move |event: PointerEvent| {
+        touches.update(|touches| {
+            if let Some(pos) = touches
+                .iter()
+                .position(|touch| touch().id == event.pointer_id())
+            {
+                let touch = touches.remove(pos);
+                touch.dispose();
+            };
+        });
+    };
+
+    view! {
+        <CountdownNotice/>
         <svg on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style="background-color:#b38b6d">
             <For each=touches key=|touch| touch().id children=move |touch|{
                 view!{<Touch touch_point=touch.read_only() radius=radius.read_only() />}
