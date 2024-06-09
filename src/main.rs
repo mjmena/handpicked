@@ -1,8 +1,11 @@
+mod notices;
+
+use crate::notices::*;
 use core::time::Duration;
 use ev::PointerEvent;
 use handpicked::*;
 use leptos::*;
-use leptos_dom::helpers::{IntervalHandle, TimeoutHandle};
+use leptos_dom::helpers::TimeoutHandle;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 fn main() {
@@ -16,49 +19,12 @@ fn main() {
 #[component]
 fn App() -> impl IntoView {
     let state = create_rw_signal(State::Starting);
-    let (countdown, set_countdown) = create_signal(3);
-
-    let height = window().inner_height().unwrap().as_f64().unwrap();
-
-    let notice_style = format!(
-        "
-            position:absolute; 
-            font-size:{}pt; 
-            pointer-events:none; 
-            height:100%; 
-            width:100%; 
-            opacity:30%; 
-            display: flex;
-            align-items: center;    
-            justify-content: center;
-            color: white;
-            text-align:center;    
-        ",
-        height * 0.1
-    );
-
-    let countdown_style = format!(
-        "
-            position:absolute; 
-            font-size:{}pt; 
-            pointer-events:none; 
-            height:100%; 
-            width:100%; 
-            opacity:30%; 
-            display: flex;
-            align-items: center;    
-            justify-content: center;
-            color: white;    
-            text-align:center;
-        ",
-        height * 0.5
-    );
+    let touches = create_rw_signal(Vec::<RwSignal<TouchPoint>>::new());
 
     let width = window().inner_width().unwrap().as_f64().unwrap();
     let height = window().inner_height().unwrap().as_f64().unwrap();
     let initial_radius = (f64::min(width, height) * 0.25) as i32;
     let radius = create_rw_signal(initial_radius);
-    let touches = create_rw_signal(Vec::<RwSignal<TouchPoint>>::new());
 
     #[cfg(debug_assertions)]
     touches.update(|touches| {
@@ -67,40 +33,22 @@ fn App() -> impl IntoView {
             x: 200,
             y: 200,
             color: "#3a86ff".to_string(),
-        }))
+        }));
     });
 
-    create_effect(move |interval_handle: Option<Option<IntervalHandle>>| {
-        if let Some(Some(interval_handle)) = interval_handle {
-            interval_handle.clear();
-            set_countdown(3);
-        };
-
-        if state() == State::Selecting {
-            let result = set_interval_with_handle(
-                move || {
-                    set_countdown.update(|countdown| {
-                        *countdown -= 1;
-                    })
-                },
-                Duration::new(1, 0),
-            );
-            Some(result.unwrap())
-        } else {
-            None
-        }
+    create_effect(move |_| {
+        log::info!("{}", state());
     });
 
     view! {
-        <Show when=move || state() == State::Starting>
-            <div style=&notice_style>Place fingers on screen to begin</div>
+        <Show when=move || state() == State::Starting >
+            <InitialNotice/>
         </Show>
-        <div style=countdown_style>{move || (state() == State::Selecting).then(countdown)}</div>
-        <Show when=move || state() == State::Revealing || state() == State::Resetting>
+        <Show when=move || state() == State::Selecting >
+            <CountdownNotice/>
+        </Show>
+        <Show when=move || state() == State::Revealing || state() ==  State::Resetting fallback=move || view!{ <TouchZone state touches radius/>}>
             <EndingTouchZone state touches radius />
-        </Show>
-        <Show when=move || state() != State::Revealing || state() != State::Resetting>
-            <TouchZone state touches radius/>
         </Show>
     }
 }
@@ -119,7 +67,7 @@ fn TouchZone(
             timer.clear();
         };
 
-        if touches().len() > 1 && state() == State::Selecting {
+        if state() == State::Selecting {
             let mut hasher = DefaultHasher::new();
             touches().hash(&mut hasher);
             let random = hasher.finish() % touches().len() as u64;
@@ -144,7 +92,6 @@ fn TouchZone(
         if let Some(Some(handle)) = preparing_timer {
             handle.clear();
         }
-
         if !touches().is_empty() {
             state.update(|state| {
                 if *state != State::Revealing {
@@ -168,6 +115,7 @@ fn TouchZone(
     });
 
     let handle_pointer_down = move |event: PointerEvent| {
+        log::info!("Pointer down");
         let signal = create_rw_signal(TouchPoint {
             id: event.pointer_id(),
             x: event.x(),
