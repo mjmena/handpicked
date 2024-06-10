@@ -66,7 +66,7 @@ fn App() -> impl IntoView {
             id: event.pointer_id(),
             x: event.x(),
             y: event.y(),
-            color: colors[(event.pointer_id() % colors.len() as i32) as usize].to_string(),
+            color: colors[touches().len()].to_string(),
         });
         touches.update(|touches| {
             touches.push(signal);
