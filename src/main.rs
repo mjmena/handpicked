@@ -38,25 +38,6 @@ fn App() -> impl IntoView {
         log::info!("{}", state());
     });
 
-    let state_view = move || match state() {
-        State::Preparing => view! {
-            <PreparingTouchZone state touches radius/>
-        },
-        State::Selecting => view! {
-            <SelectingTouchZone state touches radius/>
-        },
-        State::Revealing => {
-            view! {
-                <RevealingTouches state touches radius />
-            }
-        }
-        State::Resetting => {
-            view! {
-                <ResettingTouches state touches radius initial_radius />
-            }
-        }
-    };
-
     let colors = ["#ffbe0b", "#fb5607", "#ff006e", "#8338ec", "#3a86ff"];
     let handle_pointer_down = move |event: PointerEvent| {
         if state() == State::Revealing || state() == State::Resetting {
@@ -103,14 +84,39 @@ fn App() -> impl IntoView {
             };
         });
     };
+
+    let state_view = move || match state() {
+        State::Preparing => view! {
+            <PreparingTouchZone state touches radius/>
+        },
+        State::Selecting => view! {
+            <SelectingTouchZone state touches radius/>
+        },
+        State::Revealing => {
+            view! {
+                <RevealingTouches state touches radius />
+            }
+        }
+        State::Resetting => {
+            view! {
+                <ResettingTouches state touches radius initial_radius />
+            }
+        }
+    };
+
+    let touch_zone_style = "
+        height:100%;
+        width:100%;
+        touch-action: none;
+        margin:0;
+        padding:0;
+        background-color:#b38b6d 
+       ";
     view! {
         <Show when=move || touches().is_empty()>
             <InitialNotice />
         </Show>
-        <Show when=move||state()==State::Selecting>
-            <CountdownNotice />
-        </Show>
-        <svg on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style="background-color:#b38b6d">
+        <svg on:pointerdown=handle_pointer_down on:pointerup=handle_pointer_up on:pointermove=handle_pointer_move style=touch_zone_style >
             {state_view}
         </svg>
     }
@@ -175,6 +181,7 @@ fn SelectingTouchZone(
     });
 
     view! {
+        <CountdownNotice/>
         <For each=touches key=|touch| touch().id children=move |touch|{
             view!{<Touch touch_point=touch.read_only() radius=radius.read_only() />}
         }/>
