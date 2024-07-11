@@ -12,3 +12,4 @@ console_log = "1.0.0"
 leptos = { version = "0.6.11", features = ["csr", "nightly"] }
 leptos-use = "0.10.10"
 log = "0.4.21"
+random_color = "0.8.0"

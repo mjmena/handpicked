@@ -5,6 +5,7 @@ use core::time::Duration;
 use ev::PointerEvent;
 use handpicked::*;
 use leptos::*;
+use random_color::RandomColor;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 fn main() {
@@ -34,11 +35,7 @@ fn App() -> impl IntoView {
             color: "#3a86ff".to_string(),
         }));
     });
-    create_effect(move |_| {
-        log::info!("{}", state());
-    });
 
-    let colors = ["#ffbe0b", "#fb5607", "#ff006e", "#8338ec", "#3a86ff"];
     let handle_pointer_down = move |event: PointerEvent| {
         if state() == State::Revealing || state() == State::Resetting {
             return;
@@ -47,7 +44,7 @@ fn App() -> impl IntoView {
             id: event.pointer_id(),
             x: event.x(),
             y: event.y(),
-            color: colors[touches().len()].to_string(),
+            color: RandomColor::new().to_hex(),
         });
         touches.update(|touches| {
             touches.push(signal);
@@ -85,12 +82,20 @@ fn App() -> impl IntoView {
         });
     };
 
+    let children = move || {
+        view! {
+            <For each=touches key=|touch| touch().id children=move |touch|{
+                view!{<Touch touch_point=touch.read_only() radius=radius.read_only() />}
+            }/>
+        }
+    };
+
     let state_view = move || match state() {
         State::Preparing => view! {
-            <PreparingTouchZone state touches radius/>
+            <PreparingTouchZone state touches >{children}</PreparingTouchZone>
         },
         State::Selecting => view! {
-            <SelectingTouchZone state touches radius/>
+            <SelectingTouchZone state touches >{children}></SelectingTouchZone>
         },
         State::Revealing => {
             view! {
@@ -126,7 +131,8 @@ fn App() -> impl IntoView {
 fn PreparingTouchZone(
     state: RwSignal<State>,
     touches: RwSignal<Vec<RwSignal<TouchPoint>>>,
-    radius: RwSignal<i32>,
+
+    children: Children,
 ) -> impl IntoView {
     //timer to create a 1 second buffer when a finger is placed to when countdown starts
     create_effect(move |_| {
@@ -141,18 +147,14 @@ fn PreparingTouchZone(
         }
     });
 
-    view! {
-        <For each=touches key=|touch| touch().id children=move |touch|{
-            view!{<Touch touch_point=touch.read_only() radius=radius.read_only() />}
-        }/>
-    }
+    children()
 }
 
 #[component]
 fn SelectingTouchZone(
     state: RwSignal<State>,
     touches: RwSignal<Vec<RwSignal<TouchPoint>>>,
-    radius: RwSignal<i32>,
+    children: Children,
 ) -> impl IntoView {
     create_effect(move |previous_touches: Option<Vec<RwSignal<TouchPoint>>>| {
         if let Some(previous_touches) = previous_touches {
@@ -182,9 +184,7 @@ fn SelectingTouchZone(
 
     view! {
         <CountdownNotice/>
-        <For each=touches key=|touch| touch().id children=move |touch|{
-            view!{<Touch touch_point=touch.read_only() radius=radius.read_only() />}
-        }/>
+        {children()}
     }
 }
 
@@ -256,10 +256,11 @@ fn ResettingTouches(
 #[component]
 fn Touch(touch_point: ReadSignal<TouchPoint>, radius: ReadSignal<i32>) -> impl IntoView {
     let size = move || radius() * 2;
-
+    // let color = random_color::RandomColor::new();
     view! {
         <svg x={move || touch_point().x-radius()} y={move || touch_point().y-radius()} height=size width=size >
-            <circle style="mix-blend-mode:screen; " r=radius cx=radius cy=radius fill=move || touch_point().color />
+            // <circle style="mix-blend-mode:screen; " r=radius cx=radius cy=radius fill=color.to_hex() />
+            <circle style="mix-blend-mode:screen; " r=radius cx=radius cy=radius fill=touch_point().color />
         </svg>
     }
 }
