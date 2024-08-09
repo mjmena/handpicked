@@ -30,8 +30,8 @@ fn App() -> impl IntoView {
     touches.update(|touches| {
         touches.push(create_rw_signal(TouchPoint {
             id: 199,
-            x: 200,
-            y: 200,
+            x: 300,
+            y: 250,
             color: "#3a86ff".to_string(),
         }));
     });
@@ -47,7 +47,7 @@ fn App() -> impl IntoView {
             color: RandomColor::new().to_hex(),
         });
         touches.update(|touches| {
-            touches.push(signal);
+            // touches.push(signal);
         });
     };
 
