@@ -47,7 +47,7 @@ fn App() -> impl IntoView {
             color: RandomColor::new().to_hex(),
         });
         touches.update(|touches| {
-            // touches.push(signal);
+            touches.push(signal);
         });
     };
 
