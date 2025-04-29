@@ -115,7 +115,7 @@ fn App() -> impl IntoView {
         touch-action: none;
         margin:0;
         padding:0;
-        background-color:#b38b6d 
+        background-color:#C97ED9 
        ";
     view! {
         <Show when=move || touches().is_empty()>
