@@ -29,6 +29,7 @@
           ];
         nativeBuildInputs = [
           toolchain
+          pkgs.wasm-bindgen-cli
           pkgs.trunk
         ];
       in
