@@ -39,7 +39,7 @@
         };
         packages.githubPagesWasmBundle = pkgs.rustPlatform.buildRustPackage {
           inherit nativeBuildInputs;
-          pname = "beerio";
+          pname = "handpicked";
           version = "0.0.1";
           src = pkgs.lib.cleanSource ./.;
           cargoLock = {
